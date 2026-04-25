@@ -10,7 +10,7 @@
     "dev:client": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "NODE_ENV=production node server/index.js",
-    "test": "jest --testPathPattern=tests/"
+    "test": "jest --testPathPattern=tests/ --forceExit"
   },
   "dependencies": {
     "concurrently": "^8.2.2",
