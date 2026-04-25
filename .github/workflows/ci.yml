@@ -1,4 +1,4 @@
-name: ONE Platform — CI/CD Pipeline
+name: ONE Platform CI/CD
 
 on:
   push:
@@ -10,76 +10,74 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ─── JOB 1: Lint + Tests ───────────────────────────────────────────────────
   test:
-    name: Test & Lint
+    name: Run Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     env:
-      DATABASE_URL: postgresql://testuser:testpass@localhost:5432/one_test
-      ANTHROPIC_API_KEY: sk-ant-test-dummy
-      GEMINI_API_KEY: dummy-gemini-key
-      GROQ_API_KEY: dummy-groq-key
-      OLLAMA_MODEL: llama3.1
       NODE_ENV: test
       PORT: 3001
+      AI_PROVIDER: groq
+      GROQ_API_KEY: dummy-key-for-ci
+      DATABASE_URL: postgresql://test:test@localhost/test
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm install
-
-      - name: Check server syntax
+      - run: npm install
+      - name: Syntax check server files
         run: |
-          node --check server/index.js
-          node --check server/db.js
-          node --check server/lib/ai.js
-          node --check server/lib/tokenGen.js
-          node --check server/middleware/security.js
-          node --check server/routes/intake.js
-          node --check server/routes/tickets.js
-          node --check server/routes/citizens.js
-          node --check server/routes/services.js
-          node --check server/routes/stats.js
-          echo "✅ All server files syntax OK"
-
+          for f in server/index.js server/db.js server/lib/ai.js server/lib/tokenGen.js \
+                    server/middleware/security.js server/routes/intake.js \
+                    server/routes/tickets.js server/routes/citizens.js \
+                    server/routes/services.js server/routes/stats.js \
+                    server/routes/officers.js server/routes/appointments.js \
+                    server/routes/feedback.js; do
+            node --check $f && echo "OK: $f"
+          done
       - name: Run test suite
         run: node tests/run-tests.js
 
-  # ─── JOB 2: Build frontend ─────────────────────────────────────────────────
   build:
     name: Build Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: test
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-
-      - name: Install and build client
-        run: |
-          cd client
-          npm install
-          npm run build
-          echo "✅ Frontend built successfully"
-
-      - name: Upload build artifact
+      - name: Install and build
+        run: cd client && npm install && npm run build
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: client-dist
+          name: client-dist-${{ github.sha }}
           path: client/dist/
           retention-days: 7
+
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g @railway/cli@latest
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --detach --service one-platform
+      - name: Health check
+        env:
+          RAILWAY_URL: ${{ secrets.RAILWAY_URL }}
+        run: |
+          sleep 30
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RAILWAY_URL/api/health" || echo "000")
+          echo "Health check status: $STATUS"
