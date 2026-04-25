@@ -10,6 +10,7 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  # ── 1. Tests ──────────────────────────────────────────────────────────────
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -23,37 +24,59 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      - run: npm install
-      - name: Syntax check server files
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Syntax check all server files
         run: |
-          for f in server/index.js server/db.js server/lib/ai.js server/lib/tokenGen.js \
-                    server/middleware/security.js server/routes/intake.js \
-                    server/routes/tickets.js server/routes/citizens.js \
-                    server/routes/services.js server/routes/stats.js \
-                    server/routes/officers.js server/routes/appointments.js \
-                    server/routes/feedback.js; do
-            node --check $f && echo "OK: $f"
+          for f in \
+            server/index.js \
+            server/db.js \
+            server/lib/ai.js \
+            server/lib/tokenGen.js \
+            server/middleware/security.js \
+            server/routes/intake.js \
+            server/routes/tickets.js \
+            server/routes/citizens.js \
+            server/routes/services.js \
+            server/routes/stats.js \
+            server/routes/officers.js \
+            server/routes/appointments.js \
+            server/routes/feedback.js; do
+            node --check $f && echo "✅ $f"
           done
+
       - name: Run test suite
         run: node tests/run-tests.js
 
+  # ── 2. Build frontend ─────────────────────────────────────────────────────
   build:
     name: Build Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: test
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
       - name: Install and build
-        run: cd client && npm install && npm run build
+        run: |
+          cd client
+          npm install
+          npm run build
+          echo "✅ Build successful"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -61,23 +84,35 @@ jobs:
           path: client/dist/
           retention-days: 7
 
+  # ── 3. Deploy to Render (main branch only) ────────────────────────────────
   deploy:
-    name: Deploy to Railway
+    name: Deploy to Render
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     needs: [test, build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
     steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @railway/cli@latest
-      - name: Deploy
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --detach --service one-platform
-      - name: Health check
-        env:
-          RAILWAY_URL: ${{ secrets.RAILWAY_URL }}
+      - name: Trigger Render deploy
         run: |
-          sleep 30
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RAILWAY_URL/api/health" || echo "000")
-          echo "Health check status: $STATUS"
+          curl -s "${{ secrets.RENDER_DEPLOY_HOOK }}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --fail \
+            --silent \
+            --show-error
+          echo "✅ Deploy triggered at $(date)"
+
+      - name: Wait and verify
+        env:
+          RENDER_URL: ${{ secrets.RENDER_URL }}
+        run: |
+          echo "Waiting 60 seconds for deploy to complete..."
+          sleep 60
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$RENDER_URL/api/health" || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Health check passed — live at $RENDER_URL"
+          else
+            echo "⚠️ Status $STATUS — may still be deploying"
+          fi
