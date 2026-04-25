@@ -1,0 +1,128 @@
+name: ONE Platform — CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Lint + Unit Tests
+  # ─────────────────────────────────────────────
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: one_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://testuser:testpass@localhost:5432/one_test
+      ANTHROPIC_API_KEY: sk-ant-test-dummy-key-for-ci
+      NODE_ENV: test
+      PORT: 3001
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install client dependencies
+        run: cd client && npm install
+
+      - name: Run server unit tests
+        run: npm test --if-present
+
+      - name: Run client tests
+        run: cd client && npm test --if-present -- --watchAll=false
+
+      - name: Check server syntax
+        run: |
+          node --check server/index.js
+          node --check server/db.js
+          node --check server/lib/ai.js
+          node --check server/lib/tokenGen.js
+          node --check server/middleware/security.js
+          node --check server/routes/intake.js
+          node --check server/routes/tickets.js
+          node --check server/routes/citizens.js
+          node --check server/routes/services.js
+          node --check server/routes/stats.js
+          echo "✅ All server files syntax OK"
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Build client
+  # ─────────────────────────────────────────────
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install & build client
+        run: |
+          cd client
+          npm install
+          npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Deploy to Railway (main branch only)
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --detach
+
+      - name: Notify deployment
+        run: |
+          echo "✅ Deployed to Railway at $(date)"
+          echo "URL: ${{ secrets.RAILWAY_URL }}"
