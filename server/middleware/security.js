@@ -50,7 +50,7 @@ setInterval(() => {
   for (const [key, record] of requestCounts.entries()) {
     if (now > record.resetAt) requestCounts.delete(key);
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
 
 
 // ─── Security headers (replaces helmet for zero-dependency) ─────────────────
