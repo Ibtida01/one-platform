@@ -69,4 +69,14 @@ async function start() {
   }
 }
 
+// Keep Render free tier awake — ping self every 14 minutes
+if (process.env.NODE_ENV === 'production' && process.env.RENDER_URL) {
+  setInterval(async () => {
+    try {
+      await fetch(`${process.env.RENDER_URL}/api/health`);
+      console.log('[KEEPALIVE] Pinged health endpoint');
+    } catch (_) {}
+  }, 14 * 60 * 1000);
+}
+
 start();
