@@ -2,20 +2,12 @@ import React, { useState, useRef } from 'react';
 import VoiceInput from '../components/VoiceInput.jsx';
 import TokenCard from '../components/TokenCard.jsx';
 
-const DEMO_CITIZENS = [
-  { nid: '1234567890', name: 'Fatema Begum' },
-  { nid: '0987654321', name: 'Mohammad Karim' },
-  { nid: '1122334455', name: 'Rina Akter' },
-  { nid: '5544332211', name: 'Jamal Uddin' },
-  { nid: '9988776655', name: 'Sadia Islam' },
-];
-
 const PLACEHOLDERS = [
   'আমি টাকা জমা দিতে চাই এবং একটি FD খুলতে চাই...',
   'I need to renew my passport...',
-  'I want to open a new bank account...',
+  'nid correction korte chai...',
   'আমার ট্রেড লাইসেন্স নবায়ন করতে হবে...',
-  'I need a bank statement for the last 6 months...',
+  'I want to open a new bank account...',
 ];
 
 export default function IntakeTerminal() {
@@ -26,7 +18,7 @@ export default function IntakeTerminal() {
   const [lookingUp, setLookingUp] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [step, setStep] = useState('input'); // input | result
+  const [step, setStep] = useState('input');
   const [placeholderIdx] = useState(() => Math.floor(Math.random() * PLACEHOLDERS.length));
   const nidRef = useRef(null);
 
@@ -52,7 +44,7 @@ export default function IntakeTerminal() {
 
   const handleSubmit = async () => {
     if (!nationalId.trim() || !rawInput.trim()) {
-      setError('Please enter your National ID and describe your need.');
+      setError('Please enter your National ID and describe what you need.');
       return;
     }
     setError(null);
@@ -134,7 +126,7 @@ export default function IntakeTerminal() {
             {/* NID field */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                National ID Number
+                National ID Number / জাতীয় পরিচয়পত্র নম্বর
               </label>
               <div className="relative">
                 <input
@@ -143,7 +135,7 @@ export default function IntakeTerminal() {
                   inputMode="numeric"
                   value={nationalId}
                   onChange={(e) => handleNidChange(e.target.value.replace(/\D/g, '').slice(0, 17))}
-                  placeholder="Enter your 10-17 digit NID"
+                  placeholder="Enter your 10–17 digit NID number"
                   className="input-field text-xl font-mono pr-12"
                   autoFocus
                 />
@@ -160,6 +152,8 @@ export default function IntakeTerminal() {
                   </span>
                 )}
               </div>
+
+              {/* Citizen found */}
               {citizenInfo && (
                 <div className="mt-2 flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-lg">
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,25 +161,19 @@ export default function IntakeTerminal() {
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   <span className="text-sm font-semibold">{citizenInfo.full_name}</span>
-                  <span className="text-xs text-green-500">• {citizenInfo.phone}</span>
+                  {citizenInfo.phone && <span className="text-xs text-green-500">· {citizenInfo.phone}</span>}
+                  {citizenInfo.visit_count > 0 && (
+                    <span className="text-xs text-green-500 ml-auto">{citizenInfo.visit_count} previous visit{citizenInfo.visit_count > 1 ? 's' : ''}</span>
+                  )}
                 </div>
               )}
 
-              {/* Quick-fill demo NIDs */}
-              <div className="mt-3">
-                <p className="text-xs text-gray-400 mb-2">Quick fill (demo citizens):</p>
-                <div className="flex flex-wrap gap-2">
-                  {DEMO_CITIZENS.map((c) => (
-                    <button
-                      key={c.nid}
-                      onClick={() => handleNidChange(c.nid)}
-                      className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 rounded-lg transition-colors font-medium"
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* NID not found hint */}
+              {nationalId.length >= 10 && !lookingUp && !citizenInfo && (
+                <p className="text-xs text-amber-600 mt-2 bg-amber-50 px-3 py-2 rounded-lg">
+                  NID not found in system. A temporary record will be created — officer will verify at desk.
+                </p>
+              )}
             </div>
 
             {/* Need description */}
@@ -200,7 +188,11 @@ export default function IntakeTerminal() {
                 rows={4}
                 className="input-field text-lg resize-none"
               />
-              <VoiceInput onTranscript={handleVoiceTranscript} disabled={loading} />
+              <VoiceInput
+                onTranscript={handleVoiceTranscript}
+                disabled={loading}
+                tokenNumber={result?.ticket?.token_number}
+              />
             </div>
 
             {/* Error */}

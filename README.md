@@ -1,157 +1,135 @@
 # ONE — Unified Citizen Service Platform
 
-> "Bureaucratic friction is not inefficiency. It is institutional violence against ordinary people's time."
+> **Bureaucratic friction is not inefficiency. It is institutional violence against ordinary people's time.**
 
-ONE is a single AI-powered intake platform that eliminates the counter-ping-pong citizens face in banks and government offices. A citizen states their need in Bengali or English, gets one token, and an officer resolves everything in a single visit.
+ONE is an AI-powered unified intake platform that eliminates counter-ping-pong in banks and government offices. A citizen states what they need — in Bengali, English, or Banglish — and receives a single token. The AI pre-fills all forms, generates a document checklist, and gives the officer a complete briefing. Everything resolved in one visit.
 
-Built for **FRICTION Hackathon** by Noverse Inc.
-
----
-
-## Quick Start
-
-### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+ (local or managed, e.g. Neon, Railway, Supabase)
-- Anthropic API key (`claude-sonnet-4-20250514`)
-
-### 1. Clone and install
-```bash
-git clone <repo-url>
-cd one-platform
-npm run install:all
-```
-
-### 2. Configure environment
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/one_platform
-ANTHROPIC_API_KEY=sk-ant-api03-...
-PORT=3001
-NODE_ENV=development
-```
-
-### 3. Create the database
-```bash
-createdb one_platform
-# The server auto-runs migrations + seed on first start
-```
-
-### 4. Run
-```bash
-npm run dev
-```
-
-This starts:
-- **Backend** on `http://localhost:3001`
-- **Frontend** on `http://localhost:5173`
-
-Open `http://localhost:5173` in your browser.
+Built for the **FRICTION Hackathon** by Noverse Inc.
 
 ---
 
-## Environment Variables
+## The Problem
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | ✅ |
-| `ANTHROPIC_API_KEY` | Claude API key (`sk-ant-...`) | ✅ |
-| `PORT` | Backend server port (default: 3001) | Optional |
-| `NODE_ENV` | `development` or `production` | Optional |
+In Bangladesh, a citizen who needs to deposit money AND open a Fixed Deposit must visit 4 different counters, fill 3 different forms, and often return the next day. The same friction exists across every government office. This is not a technical problem. It is a design failure that costs citizens their time, dignity, and income.
 
 ---
 
-## Pages
+## Live Demo
 
-| URL | Description |
-|-----|-------------|
-| `/intake` or `/` | Citizen kiosk — enter NID, describe need, get token |
-| `/officer` | Officer dashboard — live queue + ticket details |
-| `/admin` | Admin panel (login: `admin` / `demo2024`) |
-| `/demo` | Live demo mode — 3 pre-built scenarios |
+| Page | URL | Who Uses It |
+|------|-----|-------------|
+| Citizen Intake | `/intake` | Citizen at kiosk |
+| Officer Dashboard | `/officer` | Desk officer |
+| Appointment Booking | `/appointment` | Citizen (advance booking) |
+| Status Tracker | `/status` | Citizen (phone) |
+| Admin Panel | `/admin` | Branch manager |
+| Demo Mode | `/demo` | Start here for a demo |
+
+---
+
+## Features
+
+**Citizen:** Trilingual NLP (Bengali/English/Banglish), voice input + TTS for low-literacy users, appointment booking, real-time queue tracking, post-service feedback.
+
+**Officer:** Live queue with 3-second refresh, citizen visit history, AI-written briefing, pre-filled form data, colour-coded document checklist, case notes.
+
+**Platform:** 84 services across 10 sectors, three-tier AI fallback (Groq → Ollama → rule-based), post-processing filter for AI error correction, rate limiting, audit logging, security headers, CI/CD pipeline.
 
 ---
 
 ## Architecture
 
 ```
-one-platform/
-├── server/
-│   ├── index.js          # Express entry, starts DB + server
-│   ├── db.js             # PostgreSQL pool, migrations, seed
-│   ├── routes/
-│   │   ├── intake.js     # POST /api/intake — core AI flow
-│   │   ├── tickets.js    # Ticket CRUD + queue
-│   │   ├── citizens.js   # NID lookup
-│   │   ├── services.js   # Service management
-│   │   └── stats.js      # Analytics
-│   └── lib/
-│       ├── ai.js         # Claude API integration
-│       └── tokenGen.js   # Token number generation (B-001, G-001, M-001)
-├── client/
-│   └── src/
-│       ├── App.jsx       # Router
-│       ├── pages/        # IntakeTerminal, OfficerDashboard, AdminPanel, DemoMode
-│       └── components/   # TokenCard, DocChecklist, FormDataTable, QueuePanel, VoiceInput
-├── seed.sql              # Standalone SQL for manual seeding
-└── .env.example
+Citizen / Officer
+       │
+  React 18 + Vite + Tailwind
+       │
+  Express.js (Node.js)
+       │              │
+  PostgreSQL      AI Provider
+  (Neon)          1. Groq (0.3s)
+                  2. Ollama (local)
+                  3. Rule-based NLP
 ```
 
 ---
 
-## How the AI Intake Works
+## Tech Stack
 
-1. Citizen enters NID → system fetches profile from DB
-2. Citizen describes need in Bengali or English (text or voice)
-3. POST `/api/intake` → Claude `claude-sonnet-4-20250514` analyzes:
-   - Detects which services are needed (from 34 available)
-   - Determines sector (banking / government / mixed)
-   - Pre-fills form fields using citizen profile
-   - Generates document checklist with `likely_have` assessment
-   - Writes a 2-3 sentence officer briefing
-   - Provides a 10-word queue summary
-4. Token generated: `B-001` (banking), `G-001` (govt), `M-001` (mixed)
-5. Ticket stored in PostgreSQL, token displayed with QR code
-
----
-
-## Demo Citizens (pre-seeded)
-
-| Name | NID |
-|------|-----|
-| Fatema Begum | 1234567890 |
-| Mohammad Karim | 0987654321 |
-| Rina Akter | 1122334455 |
-| Jamal Uddin | 5544332211 |
-| Sadia Islam | 9988776655 |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Vite, Tailwind CSS |
+| Backend | Node.js, Express |
+| Database | PostgreSQL (Neon) |
+| AI Primary | Groq — Llama 3.3 70B |
+| AI Secondary | Ollama — Llama 3.1 (offline) |
+| AI Tertiary | Rule-based NLP (always on) |
+| Voice | Web Speech API |
+| Hosting | Render |
+| CI/CD | GitHub Actions |
 
 ---
 
-## Deployment (Railway / Render)
+## Quick Start
 
-1. Set all environment variables in your platform
-2. Build command: `npm run install:all && npm run build`
-3. Start command: `NODE_ENV=production node server/index.js`
-4. The Express server serves the built React app in production
-
----
-
-## API Reference
-
+```bash
+git clone https://github.com/yourusername/one-platform.git
+cd one-platform
+npm install && cd client && npm install && cd ..
+cp .env.example .env   # fill in your values
+npm run dev
 ```
-POST  /api/intake              Process citizen input, create ticket + token
-GET   /api/queue               All waiting/serving tickets (sorted by created_at)
-GET   /api/tickets/:id         Single ticket with citizen join
-PATCH /api/tickets/:id/status  Update status: waiting | serving | done
-POST  /api/tickets/:id/notes   Add officer notes
-GET   /api/tickets/:id/notes   Get notes for a ticket
-GET   /api/citizens/lookup/:nid Fetch citizen by National ID
-GET   /api/stats               Today's analytics
-GET   /api/services            All services grouped by sector
-PATCH /api/services/:slug      Toggle service active/inactive
-GET   /api/health              Health check
+
+Open `http://localhost:5173`
+
+### Environment Variables
+
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/one_platform
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+AI_PROVIDER=groq
+NODE_ENV=development
+PORT=3001
 ```
+
+---
+
+## Adding Citizens
+
+If a citizen's NID is not in the database, the system creates a temporary record automatically and flags the ticket for verification at the desk. No citizen is ever turned away.
+
+To add citizens manually:
+
+```sql
+INSERT INTO citizens (national_id, full_name, phone, address, dob)
+VALUES ('1234567890123', 'Mohammad Rahman', '+8801711000001', 'Dhanmondi, Dhaka', '1980-05-15');
+```
+
+---
+
+## Tests
+
+```bash
+node tests/run-tests.js
+# 57 tests — token generation, input validation, AI parsing,
+# Banglish detection, service slugs, status validation
+```
+
+---
+
+## CI/CD
+
+Every push to `main`: test → build → deploy to Render automatically.
+Pull requests: test + build only.
+
+---
+
+## Services (84 total across 10 sectors)
+
+Banking · Government Identity · Travel · Business · Land · Tax · Utilities · Vehicle · Health · Labour
+
+---
+
+## License
+
+MIT — FRICTION Hackathon, Noverse Inc.
